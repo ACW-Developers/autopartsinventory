@@ -10,10 +10,15 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
+import Categories from "./pages/Categories";
 import Suppliers from "./pages/Suppliers";
+import Purchases from "./pages/Purchases";
+import Customers from "./pages/Customers";
 import POS from "./pages/POS";
+import Discounts from "./pages/Discounts";
 import Reports from "./pages/Reports";
 import Users from "./pages/Users";
+import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
@@ -33,10 +38,15 @@ const App = () => (
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/inventory" element={<Inventory />} />
+                <Route path="/categories" element={<Categories />} />
                 <Route path="/suppliers" element={<Suppliers />} />
+                <Route path="/purchases" element={<Purchases />} />
+                <Route path="/customers" element={<Customers />} />
                 <Route path="/pos" element={<POS />} />
+                <Route path="/discounts" element={<Discounts />} />
                 <Route path="/reports" element={<Reports />} />
-                <Route path="/users" element={<ProtectedRoute requireAdmin><Users /></ProtectedRoute>} />
+                <Route path="/users" element={<Users />} />
+                <Route path="/settings" element={<Settings />} />
                 <Route path="/profile" element={<Profile />} />
               </Route>
               <Route path="*" element={<NotFound />} />
