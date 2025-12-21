@@ -164,7 +164,7 @@ export function AppSidebar({ mobileOpen = false, setMobileOpen }: AppSidebarProp
       <motion.aside
         initial={false}
         animate={{ width: collapsed ? 72 : 240 }}
-        className="hidden lg:flex h-screen glass-dark flex-col border-r border-border/50 shrink-0"
+        className="hidden lg:flex min-h-screen glass-dark flex-col border-r border-border/50 shrink-0 sticky top-0 self-start"
       >
         <div className="p-4 border-b border-border/50">
           <div className="flex items-center gap-2">

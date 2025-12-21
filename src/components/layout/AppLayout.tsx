@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Outlet } from 'react-router-dom';
 import { AppSidebar } from './AppSidebar';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -7,11 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { BackToTop } from '@/components/BackToTop';
 
 export function AppLayout() {
   const { user, role } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
+  const mainRef = useRef<HTMLElement>(null);
   return (
     <div className="min-h-screen flex w-full bg-background">
       <AppSidebar mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
@@ -41,7 +42,7 @@ export function AppLayout() {
         </header>
 
         {/* Main content */}
-        <main className="flex-1 overflow-auto p-3 sm:p-6">
+        <main ref={mainRef} className="flex-1 overflow-auto p-3 sm:p-6">
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -49,8 +50,8 @@ export function AppLayout() {
           >
             <Outlet />
           </motion.div>
+          <BackToTop scrollContainerRef={mainRef} />
         </main>
-
         {/* Footer */}
         <footer className="shrink-0 border-t border-border/50 bg-card/50 backdrop-blur-sm px-4 py-4 sm:px-6">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs sm:text-sm text-muted-foreground">
