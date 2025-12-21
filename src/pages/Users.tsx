@@ -58,7 +58,7 @@ export default function Users() {
               </div>
               <div className="flex items-center gap-4">
                 <Badge variant={u.is_active ? 'default' : 'secondary'} className="cursor-pointer" onClick={() => toggleActive(u.id, u.is_active)}>{u.is_active ? 'Active' : 'Inactive'}</Badge>
-                <Select value={u.role} onValueChange={(v) => updateRole(u.id, v)}>
+                <Select value={u.role} onValueChange={(v) => updateRole(u.id, v as 'admin' | 'staff')}>
                   <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="admin">Admin</SelectItem><SelectItem value="staff">Staff</SelectItem></SelectContent>
                 </Select>
