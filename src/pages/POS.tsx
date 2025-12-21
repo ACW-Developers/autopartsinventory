@@ -4,13 +4,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ShoppingCart, Plus, Minus, Trash2, User, Tag, Printer, X, Search } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, User, Tag, Printer, X, Search, Scan, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { motion } from 'framer-motion';
+import { BarcodeScanner } from '@/components/BarcodeScanner';
+import { generateReceiptPDF } from '@/utils/pdfGenerator';
 
 interface CartItem { inventory: any; quantity: number; }
 interface Customer { id: string; name: string; phone: string | null; email: string | null; }
@@ -29,6 +31,7 @@ export default function POS() {
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const [businessName, setBusinessName] = useState('AutoParts AZ');
+  const [showScanner, setShowScanner] = useState(false);
   const receiptRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const { toast } = useToast();
@@ -52,6 +55,16 @@ export default function POS() {
   const fetchBusinessName = async () => {
     const { data } = await supabase.from('settings').select('value').eq('key', 'business_name').single();
     if (data?.value) setBusinessName(data.value);
+  };
+
+  const handleBarcodeScan = (code: string) => {
+    const item = items.find(i => i.part_number.toLowerCase() === code.toLowerCase());
+    if (item) {
+      addToCart(item);
+      toast({ title: 'Item added', description: `${item.part_name} added to cart` });
+    } else {
+      toast({ title: 'Not found', description: `No item with barcode: ${code}`, variant: 'destructive' });
+    }
   };
 
   const addToCart = (item: any) => {
@@ -273,9 +286,15 @@ export default function POS() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Products Grid */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search parts..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search by name or part number..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+            </div>
+            <Button variant="outline" onClick={() => setShowScanner(true)} className="shrink-0">
+              <Scan className="h-4 w-4 mr-2" />
+              Scan Barcode
+            </Button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 max-h-[65vh] overflow-auto pr-2">
             {filtered.map((item, i) => (
@@ -451,10 +470,27 @@ export default function POS() {
           </div>
           <div className="flex gap-2">
             <Button className="flex-1" onClick={printReceipt}><Printer className="h-4 w-4 mr-2" />Print</Button>
+            <Button 
+              variant="outline" 
+              className="flex-1" 
+              onClick={() => {
+                const pdf = generateReceiptPDF({ ...receiptData, businessName });
+                pdf.save(`receipt-${receiptData?.receiptNumber}.pdf`);
+              }}
+            >
+              <FileText className="h-4 w-4 mr-2" />Save PDF
+            </Button>
             <Button variant="outline" className="flex-1" onClick={() => setShowReceipt(false)}>Close</Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Barcode Scanner Dialog */}
+      <BarcodeScanner 
+        open={showScanner} 
+        onClose={() => setShowScanner(false)} 
+        onScan={handleBarcodeScan} 
+      />
     </div>
   );
 }
