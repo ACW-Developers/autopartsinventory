@@ -16,7 +16,7 @@ export function AppLayout() {
     <div className="min-h-screen flex w-full bg-background">
       <AppSidebar mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
       
-      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+      <div className="flex-1 flex flex-col min-h-screen min-w-0">
         {/* Top bar */}
         <header className="h-14 sm:h-16 glass border-b border-border/50 flex items-center justify-between px-3 sm:px-6 shrink-0">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
@@ -50,6 +50,18 @@ export function AppLayout() {
             <Outlet />
           </motion.div>
         </main>
+
+        {/* Footer */}
+        <footer className="shrink-0 border-t border-border/50 bg-card/50 backdrop-blur-sm px-4 py-4 sm:px-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-xs sm:text-sm text-muted-foreground">
+            <p>© {new Date().getFullYear()} Auto Parts Management System. All rights reserved.</p>
+            <div className="flex items-center gap-4">
+              <span className="hover:text-foreground transition-colors cursor-pointer">Privacy Policy</span>
+              <span className="hover:text-foreground transition-colors cursor-pointer">Terms of Service</span>
+              <span className="hover:text-foreground transition-colors cursor-pointer">Support</span>
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   );
