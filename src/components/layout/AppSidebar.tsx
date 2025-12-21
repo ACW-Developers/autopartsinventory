@@ -1,12 +1,13 @@
+import { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Package, Truck, ShoppingCart, BarChart3, Users, User, LogOut,
   ChevronLeft, ChevronRight, Wrench, Tag, Ticket, Settings, ClipboardList, UserCheck
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const mainNavItems = [
@@ -35,6 +36,26 @@ export function AppSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+  const [businessName, setBusinessName] = useState('AutoParts AZ');
+
+  useEffect(() => {
+    fetchBusinessName();
+    
+    // Subscribe to settings changes
+    const channel = supabase
+      .channel('settings-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, () => {
+        fetchBusinessName();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  const fetchBusinessName = async () => {
+    const { data } = await supabase.from('settings').select('value').eq('key', 'business_name').single();
+    if (data?.value) setBusinessName(data.value);
+  };
 
   const handleSignOut = async () => { await signOut(); navigate('/auth'); };
 
@@ -61,7 +82,7 @@ export function AppSidebar() {
           <div className="flex items-center gap-2">
             <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center glow"><Wrench className="h-5 w-5 text-primary" /></div>
             <AnimatePresence>
-              {!collapsed && (<motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="overflow-hidden"><h1 className="font-display text-lg font-bold gradient-text whitespace-nowrap">AutoParts AZ</h1></motion.div>)}
+              {!collapsed && (<motion.div initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: 'auto' }} exit={{ opacity: 0, width: 0 }} className="overflow-hidden"><h1 className="font-display text-lg font-bold gradient-text whitespace-nowrap">{businessName}</h1></motion.div>)}
             </AnimatePresence>
           </div>
         </div>
