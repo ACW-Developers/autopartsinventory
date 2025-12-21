@@ -1,128 +1,354 @@
 import { useEffect, useState } from 'react';
-import { Package, AlertTriangle, DollarSign, TrendingUp, ShoppingCart } from 'lucide-react';
+import { Package, AlertTriangle, DollarSign, TrendingUp, ShoppingCart, Users, Truck, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 interface DashboardStats {
   totalItems: number;
   lowStockCount: number;
   todaySales: number;
   monthlyRevenue: number;
+  totalCustomers: number;
+  totalSuppliers: number;
+  pendingOrders: number;
+  weeklyGrowth: number;
 }
 
+const COLORS = ['hsl(var(--primary))', 'hsl(var(--success))', 'hsl(var(--warning))', 'hsl(var(--info))', 'hsl(var(--destructive))'];
+
 export default function Dashboard() {
-  const [stats, setStats] = useState<DashboardStats>({ totalItems: 0, lowStockCount: 0, todaySales: 0, monthlyRevenue: 0 });
+  const [stats, setStats] = useState<DashboardStats>({ 
+    totalItems: 0, lowStockCount: 0, todaySales: 0, monthlyRevenue: 0,
+    totalCustomers: 0, totalSuppliers: 0, pendingOrders: 0, weeklyGrowth: 0
+  });
   const [recentSales, setRecentSales] = useState<any[]>([]);
   const [lowStockItems, setLowStockItems] = useState<any[]>([]);
+  const [salesTrend, setSalesTrend] = useState<any[]>([]);
+  const [categoryData, setCategoryData] = useState<any[]>([]);
+  const [revenueData, setRevenueData] = useState<any[]>([]);
 
   useEffect(() => {
     fetchDashboardData();
   }, []);
 
   const fetchDashboardData = async () => {
-    const { data: inventory } = await supabase.from('inventory').select('*');
-    const { data: sales } = await supabase.from('pos_sales').select('*, inventory(part_name), profiles(full_name)').order('created_at', { ascending: false }).limit(5);
-    
     const today = new Date().toISOString().split('T')[0];
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-    
-    const { data: todaySalesData } = await supabase.from('pos_sales').select('total_price').gte('created_at', today);
-    const { data: monthlySalesData } = await supabase.from('pos_sales').select('total_price').gte('created_at', monthStart);
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
 
-    const lowStock = inventory?.filter(item => item.quantity <= item.reorder_level) || [];
+    const [inventoryRes, salesRes, todaySalesRes, monthlySalesRes, customersRes, suppliersRes, ordersRes, lastWeekRes, prevWeekRes] = await Promise.all([
+      supabase.from('inventory').select('*'),
+      supabase.from('pos_sales').select('*, inventory(part_name, category), profiles(full_name)').order('created_at', { ascending: false }).limit(5),
+      supabase.from('pos_sales').select('total_price').gte('created_at', today),
+      supabase.from('pos_sales').select('total_price').gte('created_at', monthStart),
+      supabase.from('customers').select('id', { count: 'exact', head: true }),
+      supabase.from('suppliers').select('id', { count: 'exact', head: true }),
+      supabase.from('purchase_orders').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('pos_sales').select('total_price').gte('created_at', weekAgo),
+      supabase.from('pos_sales').select('total_price').gte('created_at', twoWeeksAgo).lt('created_at', weekAgo)
+    ]);
+
+    const inventory = inventoryRes.data || [];
+    const lowStock = inventory.filter(item => item.quantity <= item.reorder_level);
     
+    const lastWeekTotal = lastWeekRes.data?.reduce((sum, s) => sum + Number(s.total_price), 0) || 0;
+    const prevWeekTotal = prevWeekRes.data?.reduce((sum, s) => sum + Number(s.total_price), 0) || 0;
+    const growth = prevWeekTotal > 0 ? ((lastWeekTotal - prevWeekTotal) / prevWeekTotal) * 100 : 0;
+
     setStats({
-      totalItems: inventory?.length || 0,
+      totalItems: inventory.length,
       lowStockCount: lowStock.length,
-      todaySales: todaySalesData?.reduce((sum, s) => sum + Number(s.total_price), 0) || 0,
-      monthlyRevenue: monthlySalesData?.reduce((sum, s) => sum + Number(s.total_price), 0) || 0,
+      todaySales: todaySalesRes.data?.reduce((sum, s) => sum + Number(s.total_price), 0) || 0,
+      monthlyRevenue: monthlySalesRes.data?.reduce((sum, s) => sum + Number(s.total_price), 0) || 0,
+      totalCustomers: customersRes.count || 0,
+      totalSuppliers: suppliersRes.count || 0,
+      pendingOrders: ordersRes.count || 0,
+      weeklyGrowth: growth
     });
-    setRecentSales(sales || []);
+    setRecentSales(salesRes.data || []);
     setLowStockItems(lowStock.slice(0, 5));
+
+    // Generate sales trend data (last 7 days)
+    const trendData = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      const dateStr = date.toISOString().split('T')[0];
+      const nextDate = new Date(date.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      
+      const { data } = await supabase
+        .from('pos_sales')
+        .select('total_price')
+        .gte('created_at', dateStr)
+        .lt('created_at', nextDate);
+      
+      trendData.push({
+        day: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        sales: data?.reduce((sum, s) => sum + Number(s.total_price), 0) || 0,
+        transactions: data?.length || 0
+      });
+    }
+    setSalesTrend(trendData);
+
+    // Category distribution
+    const categoryMap: Record<string, number> = {};
+    inventory.forEach(item => {
+      const cat = item.category || 'Uncategorized';
+      categoryMap[cat] = (categoryMap[cat] || 0) + item.quantity;
+    });
+    setCategoryData(Object.entries(categoryMap).slice(0, 5).map(([name, value]) => ({ name, value })));
+
+    // Monthly revenue data (last 6 months)
+    const revenueArr = [];
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthStart = new Date(date.getFullYear(), date.getMonth(), 1).toISOString();
+      const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString();
+      
+      const { data } = await supabase
+        .from('pos_sales')
+        .select('total_price, cost:inventory(cost_price), quantity_sold')
+        .gte('created_at', monthStart)
+        .lte('created_at', monthEnd);
+      
+      const revenue = data?.reduce((sum, s) => sum + Number(s.total_price), 0) || 0;
+      const cost = data?.reduce((sum, s) => sum + (Number((s.cost as any)?.cost_price || 0) * s.quantity_sold), 0) || 0;
+      
+      revenueArr.push({
+        month: date.toLocaleDateString('en-US', { month: 'short' }),
+        revenue,
+        profit: revenue - cost
+      });
+    }
+    setRevenueData(revenueArr);
   };
 
   const statCards = [
-    { title: 'Total Inventory', value: stats.totalItems, icon: Package, color: 'text-primary' },
-    { title: 'Low Stock Alerts', value: stats.lowStockCount, icon: AlertTriangle, color: 'text-warning' },
-    { title: 'Today\'s Sales', value: `$${stats.todaySales.toFixed(2)}`, icon: ShoppingCart, color: 'text-success' },
-    { title: 'Monthly Revenue', value: `$${stats.monthlyRevenue.toFixed(2)}`, icon: TrendingUp, color: 'text-info' },
+    { title: 'Total Inventory', value: stats.totalItems, icon: Package, color: 'text-primary', bg: 'bg-primary/20' },
+    { title: 'Low Stock Alerts', value: stats.lowStockCount, icon: AlertTriangle, color: 'text-warning', bg: 'bg-warning/20' },
+    { title: 'Today\'s Sales', value: `$${stats.todaySales.toFixed(2)}`, icon: ShoppingCart, color: 'text-success', bg: 'bg-success/20' },
+    { title: 'Monthly Revenue', value: `$${stats.monthlyRevenue.toFixed(2)}`, icon: TrendingUp, color: 'text-info', bg: 'bg-info/20' },
+    { title: 'Customers', value: stats.totalCustomers, icon: Users, color: 'text-primary', bg: 'bg-primary/20' },
+    { title: 'Suppliers', value: stats.totalSuppliers, icon: Truck, color: 'text-success', bg: 'bg-success/20' },
   ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl font-bold gradient-text">Dashboard</h1>
-        <p className="text-muted-foreground">Overview of your auto parts inventory</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-3xl font-bold gradient-text">Dashboard</h1>
+          <p className="text-muted-foreground">Real-time overview of your auto parts business</p>
+        </div>
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }} 
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl glass"
+        >
+          {stats.weeklyGrowth >= 0 ? (
+            <ArrowUpRight className="h-5 w-5 text-success" />
+          ) : (
+            <ArrowDownRight className="h-5 w-5 text-destructive" />
+          )}
+          <span className={`font-display font-bold ${stats.weeklyGrowth >= 0 ? 'text-success' : 'text-destructive'}`}>
+            {stats.weeklyGrowth >= 0 ? '+' : ''}{stats.weeklyGrowth.toFixed(1)}%
+          </span>
+          <span className="text-sm text-muted-foreground">vs last week</span>
+        </motion.div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         {statCards.map((stat, i) => (
-          <motion.div key={stat.title} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}>
-            <Card className="metric-card">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{stat.title}</p>
-                    <p className="text-2xl font-display font-bold mt-1">{stat.value}</p>
-                  </div>
-                  <div className={`h-12 w-12 rounded-xl bg-muted/50 flex items-center justify-center ${stat.color}`}>
-                    <stat.icon className="h-6 w-6" />
+          <motion.div key={stat.title} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+            <Card className="metric-card overflow-hidden relative">
+              <div className={`absolute inset-0 ${stat.bg} opacity-20`} />
+              <CardContent className="p-4 relative">
+                <div className="flex items-center justify-between mb-2">
+                  <div className={`h-10 w-10 rounded-xl ${stat.bg} flex items-center justify-center ${stat.color}`}>
+                    <stat.icon className="h-5 w-5" />
                   </div>
                 </div>
+                <p className="text-2xl font-display font-bold">{stat.value}</p>
+                <p className="text-xs text-muted-foreground truncate">{stat.title}</p>
               </CardContent>
             </Card>
           </motion.div>
         ))}
       </div>
 
+      {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="glass">
-          <CardHeader>
-            <CardTitle className="font-display">Recent Sales</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {recentSales.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">No sales yet</p>
-            ) : (
-              <div className="space-y-3">
-                {recentSales.map((sale) => (
-                  <div key={sale.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                    <div>
-                      <p className="font-medium">{sale.inventory?.part_name}</p>
-                      <p className="text-sm text-muted-foreground">Qty: {sale.quantity_sold}</p>
-                    </div>
-                    <p className="font-display font-bold text-success">${Number(sale.total_price).toFixed(2)}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Sales Trend */}
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
+          <Card className="glass">
+            <CardHeader>
+              <CardTitle className="font-display flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Sales Trend (Last 7 Days)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={250}>
+                <AreaChart data={salesTrend}>
+                  <defs>
+                    <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4}/>
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `$${v}`} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      background: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }} 
+                    formatter={(value: number) => [`$${value.toFixed(2)}`, 'Sales']}
+                  />
+                  <Area type="monotone" dataKey="sales" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#salesGradient)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-        <Card className="glass">
-          <CardHeader>
-            <CardTitle className="font-display">Low Stock Items</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {lowStockItems.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">All items well stocked</p>
-            ) : (
-              <div className="space-y-3">
-                {lowStockItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                    <div>
-                      <p className="font-medium">{item.part_name}</p>
-                      <p className="text-sm text-muted-foreground">{item.part_number}</p>
-                    </div>
-                    <Badge variant="destructive">{item.quantity} left</Badge>
-                  </div>
+        {/* Revenue & Profit */}
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
+          <Card className="glass">
+            <CardHeader>
+              <CardTitle className="font-display flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-success" />
+                Revenue & Profit (6 Months)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={revenueData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `$${v}`} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      background: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }}
+                    formatter={(value: number) => [`$${value.toFixed(2)}`]}
+                  />
+                  <Legend />
+                  <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Revenue" />
+                  <Bar dataKey="profit" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} name="Profit" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+
+      {/* Bottom Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Category Distribution */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+          <Card className="glass">
+            <CardHeader>
+              <CardTitle className="font-display">Inventory by Category</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {categoryData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ 
+                      background: 'hsl(var(--card))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap gap-2 justify-center mt-2">
+                {categoryData.map((cat, i) => (
+                  <Badge key={cat.name} variant="outline" className="text-xs" style={{ borderColor: COLORS[i % COLORS.length] }}>
+                    {cat.name}
+                  </Badge>
                 ))}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Recent Sales */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+          <Card className="glass">
+            <CardHeader>
+              <CardTitle className="font-display">Recent Sales</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {recentSales.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">No sales yet</p>
+              ) : (
+                <div className="space-y-3">
+                  {recentSales.map((sale) => (
+                    <div key={sale.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{sale.inventory?.part_name}</p>
+                        <p className="text-sm text-muted-foreground">Qty: {sale.quantity_sold}</p>
+                      </div>
+                      <p className="font-display font-bold text-success">${Number(sale.total_price).toFixed(2)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Low Stock Items */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+          <Card className="glass">
+            <CardHeader>
+              <CardTitle className="font-display flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-warning" />
+                Low Stock Alerts
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {lowStockItems.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">All items well stocked</p>
+              ) : (
+                <div className="space-y-3">
+                  {lowStockItems.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{item.part_name}</p>
+                        <p className="text-sm text-muted-foreground">{item.part_number}</p>
+                      </div>
+                      <Badge variant="destructive">{item.quantity} left</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     </div>
   );

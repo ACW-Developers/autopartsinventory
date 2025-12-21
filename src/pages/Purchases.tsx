@@ -3,16 +3,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Package, Truck, CheckCircle, Clock, AlertCircle, Eye, PackageCheck } from 'lucide-react';
+import { Plus, Package, Truck, CheckCircle, Clock, AlertCircle, PackageCheck, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface Supplier { id: string; name: string; }
+interface InventoryItem { id: string; part_name: string; part_number: string; category: string; }
 interface PurchaseOrder {
   id: string;
   order_number: string;
@@ -29,21 +30,31 @@ interface OrderItem {
   quantity_ordered: number;
   quantity_received: number;
   unit_cost: number;
+  inventory_id: string | null;
 }
 
 export default function Purchases() {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [form, setForm] = useState({ supplier_id: '', notes: '', items: [{ part_name: '', part_number: '', quantity: '', unit_cost: '' }] });
+  const [form, setForm] = useState({ 
+    supplier_id: '', 
+    notes: '', 
+    items: [{ inventory_id: '', part_name: '', part_number: '', quantity: '', unit_cost: '' }] 
+  });
   const { user } = useAuth();
   const { toast } = useToast();
 
-  useEffect(() => { fetchOrders(); fetchSuppliers(); }, []);
+  useEffect(() => { 
+    fetchOrders(); 
+    fetchSuppliers(); 
+    fetchInventory();
+  }, []);
 
   const fetchOrders = async () => {
     const { data } = await supabase.from('purchase_orders').select('*, suppliers(id, name)').order('created_at', { ascending: false });
@@ -55,7 +66,26 @@ export default function Purchases() {
     setSuppliers(data || []);
   };
 
+  const fetchInventory = async () => {
+    const { data } = await supabase.from('inventory').select('id, part_name, part_number, category').order('part_name');
+    setInventoryItems(data || []);
+  };
+
   const generateOrderNumber = () => `PO-${Date.now().toString(36).toUpperCase()}`;
+
+  const handleProductSelect = (index: number, inventoryId: string) => {
+    const product = inventoryItems.find(p => p.id === inventoryId);
+    if (product) {
+      const newItems = [...form.items];
+      newItems[index] = { 
+        ...newItems[index], 
+        inventory_id: inventoryId,
+        part_name: product.part_name, 
+        part_number: product.part_number 
+      };
+      setForm({ ...form, items: newItems });
+    }
+  };
 
   const handleCreateOrder = async () => {
     if (!form.supplier_id) { toast({ title: 'Select a supplier', variant: 'destructive' }); return; }
@@ -77,6 +107,7 @@ export default function Purchases() {
 
     const itemsToInsert = validItems.map(i => ({
       purchase_order_id: order.id,
+      inventory_id: i.inventory_id || null,
       part_name: i.part_name,
       part_number: i.part_number || null,
       quantity_ordered: Number(i.quantity),
@@ -87,11 +118,19 @@ export default function Purchases() {
 
     toast({ title: 'Purchase Order Created', description: `Order ${orderNumber} created successfully` });
     setDialogOpen(false);
-    setForm({ supplier_id: '', notes: '', items: [{ part_name: '', part_number: '', quantity: '', unit_cost: '' }] });
+    setForm({ supplier_id: '', notes: '', items: [{ inventory_id: '', part_name: '', part_number: '', quantity: '', unit_cost: '' }] });
     fetchOrders();
   };
 
-  const addItem = () => setForm({ ...form, items: [...form.items, { part_name: '', part_number: '', quantity: '', unit_cost: '' }] });
+  const addItem = () => setForm({ ...form, items: [...form.items, { inventory_id: '', part_name: '', part_number: '', quantity: '', unit_cost: '' }] });
+  
+  const removeItem = (index: number) => {
+    if (form.items.length > 1) {
+      const newItems = form.items.filter((_, i) => i !== index);
+      setForm({ ...form, items: newItems });
+    }
+  };
+
   const updateItem = (index: number, field: string, value: string) => {
     const newItems = [...form.items];
     newItems[index] = { ...newItems[index], [field]: value };
@@ -116,8 +155,13 @@ export default function Purchases() {
     await supabase.from('purchase_order_items').update({ quantity_received: newReceived }).eq('id', itemId);
     await supabase.from('purchase_receipts').insert([{ purchase_order_id: selectedOrder.id, purchase_order_item_id: itemId, quantity_received: qty, received_by: user.id }]);
 
-    // Update inventory if item exists
-    if (item.part_number) {
+    // Update inventory
+    if (item.inventory_id) {
+      const { data: invItem } = await supabase.from('inventory').select('id, quantity').eq('id', item.inventory_id).single();
+      if (invItem) {
+        await supabase.from('inventory').update({ quantity: invItem.quantity + qty }).eq('id', invItem.id);
+      }
+    } else if (item.part_number) {
       const { data: invItem } = await supabase.from('inventory').select('id, quantity').eq('part_number', item.part_number).single();
       if (invItem) {
         await supabase.from('inventory').update({ quantity: invItem.quantity + qty }).eq('id', invItem.id);
@@ -127,7 +171,7 @@ export default function Purchases() {
     // Check order status
     const { data: allItems } = await supabase.from('purchase_order_items').select('*').eq('purchase_order_id', selectedOrder.id);
     const totalOrdered = allItems?.reduce((s, i) => s + i.quantity_ordered, 0) || 0;
-    const totalReceived = allItems?.reduce((s, i) => s + i.quantity_received, 0) || 0 + qty;
+    const totalReceived = (allItems?.reduce((s, i) => s + i.quantity_received, 0) || 0) + qty;
 
     let newStatus: 'pending' | 'partial' | 'complete' = 'pending';
     if (totalReceived >= totalOrdered) newStatus = 'complete';
@@ -171,7 +215,7 @@ export default function Purchases() {
           <DialogTrigger asChild>
             <Button className="glow"><Plus className="mr-2 h-4 w-4" />New Purchase Order</Button>
           </DialogTrigger>
-          <DialogContent className="glass max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="glass max-w-3xl max-h-[80vh] overflow-y-auto">
             <DialogHeader><DialogTitle className="font-display">Create Purchase Order</DialogTitle></DialogHeader>
             <div className="space-y-4 py-4">
               <Select value={form.supplier_id} onValueChange={v => setForm({ ...form, supplier_id: v })}>
@@ -182,19 +226,51 @@ export default function Purchases() {
               </Select>
 
               <div className="space-y-3">
-                <p className="text-sm font-medium">Order Items</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Order Items</p>
+                  <Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" />Add Item</Button>
+                </div>
                 {form.items.map((item, i) => (
-                  <div key={i} className="grid grid-cols-4 gap-2">
-                    <Input placeholder="Part Name *" value={item.part_name} onChange={e => updateItem(i, 'part_name', e.target.value)} />
-                    <Input placeholder="Part Number" value={item.part_number} onChange={e => updateItem(i, 'part_number', e.target.value)} />
-                    <Input type="number" placeholder="Qty *" value={item.quantity} onChange={e => updateItem(i, 'quantity', e.target.value)} />
-                    <Input type="number" placeholder="Unit Cost" value={item.unit_cost} onChange={e => updateItem(i, 'unit_cost', e.target.value)} />
+                  <div key={i} className="p-4 rounded-lg bg-muted/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Item #{i + 1}</span>
+                      {form.items.length > 1 && (
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeItem(i)}>
+                          <Trash2 className="h-3 w-3 text-destructive" />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Select value={item.inventory_id} onValueChange={v => handleProductSelect(i, v)}>
+                        <SelectTrigger><SelectValue placeholder="Select from inventory (optional)" /></SelectTrigger>
+                        <SelectContent>
+                          {inventoryItems.map(inv => (
+                            <SelectItem key={inv.id} value={inv.id}>
+                              {inv.part_name} ({inv.part_number}) - {inv.category}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input placeholder="Or enter part name manually" value={item.part_name} onChange={e => updateItem(i, 'part_name', e.target.value)} />
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <Input placeholder="Part Number" value={item.part_number} onChange={e => updateItem(i, 'part_number', e.target.value)} />
+                      <Input type="number" placeholder="Quantity *" value={item.quantity} onChange={e => updateItem(i, 'quantity', e.target.value)} />
+                      <Input type="number" step="0.01" placeholder="Unit Cost ($)" value={item.unit_cost} onChange={e => updateItem(i, 'unit_cost', e.target.value)} />
+                    </div>
                   </div>
                 ))}
-                <Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" />Add Item</Button>
               </div>
 
               <Textarea placeholder="Notes (optional)" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
+              
+              <div className="flex justify-between items-center p-4 rounded-lg bg-primary/10">
+                <span className="font-medium">Total Amount:</span>
+                <span className="font-display text-xl font-bold text-primary">
+                  ${form.items.reduce((sum, i) => sum + (Number(i.quantity || 0) * Number(i.unit_cost || 0)), 0).toFixed(2)}
+                </span>
+              </div>
+              
               <Button className="w-full" onClick={handleCreateOrder}>Create Order</Button>
             </div>
           </DialogContent>
