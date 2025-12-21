@@ -42,7 +42,7 @@ export default function Dashboard() {
 
     const [inventoryRes, salesRes, todaySalesRes, monthlySalesRes, customersRes, suppliersRes, ordersRes, lastWeekRes, prevWeekRes] = await Promise.all([
       supabase.from('inventory').select('*'),
-      supabase.from('pos_sales').select('*, inventory(part_name, category), profiles(full_name)').order('created_at', { ascending: false }).limit(5),
+      supabase.from('pos_sales').select('*, inventory(part_name, category), profiles(full_name)').order('created_at', { ascending: false }).limit(4),
       supabase.from('pos_sales').select('total_price').gte('created_at', today),
       supabase.from('pos_sales').select('total_price').gte('created_at', monthStart),
       supabase.from('customers').select('id', { count: 'exact', head: true }),
@@ -137,42 +137,42 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="font-display text-3xl font-bold gradient-text">Dashboard</h1>
-          <p className="text-muted-foreground">Real-time overview of your auto parts business</p>
+          <h1 className="font-display text-2xl sm:text-3xl font-bold gradient-text">Dashboard</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Real-time overview of your auto parts business</p>
         </div>
         <motion.div 
           initial={{ opacity: 0, scale: 0.9 }} 
           animate={{ opacity: 1, scale: 1 }}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl glass"
+          className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl glass self-start sm:self-auto"
         >
           {stats.weeklyGrowth >= 0 ? (
-            <ArrowUpRight className="h-5 w-5 text-success" />
+            <ArrowUpRight className="h-4 w-4 sm:h-5 sm:w-5 text-success" />
           ) : (
-            <ArrowDownRight className="h-5 w-5 text-destructive" />
+            <ArrowDownRight className="h-4 w-4 sm:h-5 sm:w-5 text-destructive" />
           )}
-          <span className={`font-display font-bold ${stats.weeklyGrowth >= 0 ? 'text-success' : 'text-destructive'}`}>
+          <span className={`font-display text-sm sm:text-base font-bold ${stats.weeklyGrowth >= 0 ? 'text-success' : 'text-destructive'}`}>
             {stats.weeklyGrowth >= 0 ? '+' : ''}{stats.weeklyGrowth.toFixed(1)}%
           </span>
-          <span className="text-sm text-muted-foreground">vs last week</span>
+          <span className="text-xs sm:text-sm text-muted-foreground hidden xs:inline">vs last week</span>
         </motion.div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         {statCards.map((stat, i) => (
           <motion.div key={stat.title} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
             <Card className="metric-card overflow-hidden relative">
               <div className={`absolute inset-0 ${stat.bg} opacity-20`} />
-              <CardContent className="p-4 relative">
+              <CardContent className="p-3 sm:p-4 relative">
                 <div className="flex items-center justify-between mb-2">
-                  <div className={`h-10 w-10 rounded-xl ${stat.bg} flex items-center justify-center ${stat.color}`}>
-                    <stat.icon className="h-5 w-5" />
+                  <div className={`h-8 w-8 sm:h-10 sm:w-10 rounded-xl ${stat.bg} flex items-center justify-center ${stat.color}`}>
+                    <stat.icon className="h-4 w-4 sm:h-5 sm:w-5" />
                   </div>
                 </div>
-                <p className="text-2xl font-display font-bold">{stat.value}</p>
+                <p className="text-lg sm:text-2xl font-display font-bold">{stat.value}</p>
                 <p className="text-xs text-muted-foreground truncate">{stat.title}</p>
               </CardContent>
             </Card>
@@ -181,18 +181,18 @@ export default function Dashboard() {
       </div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Sales Trend */}
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}>
           <Card className="glass">
-            <CardHeader>
-              <CardTitle className="font-display flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-primary" />
-                Sales Trend (Last 7 Days)
+            <CardHeader className="pb-2 sm:pb-4">
+              <CardTitle className="font-display flex items-center gap-2 text-base sm:text-lg">
+                <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                Sales Trend (7 Days)
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={250}>
+            <CardContent className="p-2 sm:p-6">
+              <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={salesTrend}>
                   <defs>
                     <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
@@ -201,13 +201,14 @@ export default function Dashboard() {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `$${v}`} />
+                  <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickFormatter={(v) => `$${v}`} width={50} />
                   <Tooltip 
                     contentStyle={{ 
                       background: 'hsl(var(--card))', 
                       border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
+                      borderRadius: '8px',
+                      fontSize: '12px'
                     }} 
                     formatter={(value: number) => [`$${value.toFixed(2)}`, 'Sales']}
                   />
@@ -221,27 +222,28 @@ export default function Dashboard() {
         {/* Revenue & Profit */}
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}>
           <Card className="glass">
-            <CardHeader>
-              <CardTitle className="font-display flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-success" />
-                Revenue & Profit (6 Months)
+            <CardHeader className="pb-2 sm:pb-4">
+              <CardTitle className="font-display flex items-center gap-2 text-base sm:text-lg">
+                <DollarSign className="h-4 w-4 sm:h-5 sm:w-5 text-success" />
+                Revenue & Profit (6 Mo)
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={250}>
+            <CardContent className="p-2 sm:p-6">
+              <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={revenueData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `$${v}`} />
+                  <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} tickFormatter={(v) => `$${v}`} width={50} />
                   <Tooltip 
                     contentStyle={{ 
                       background: 'hsl(var(--card))', 
                       border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
+                      borderRadius: '8px',
+                      fontSize: '12px'
                     }}
                     formatter={(value: number) => [`$${value.toFixed(2)}`]}
                   />
-                  <Legend />
+                  <Legend wrapperStyle={{ fontSize: '10px' }} />
                   <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} name="Revenue" />
                   <Bar dataKey="profit" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} name="Profit" />
                 </BarChart>
@@ -252,22 +254,22 @@ export default function Dashboard() {
       </div>
 
       {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Category Distribution */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
           <Card className="glass">
-            <CardHeader>
-              <CardTitle className="font-display">Inventory by Category</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="font-display text-base sm:text-lg">Inventory by Category</CardTitle>
             </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={200}>
+            <CardContent className="p-2 sm:p-6">
+              <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
                   <Pie
                     data={categoryData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
+                    innerRadius={40}
+                    outerRadius={70}
                     paddingAngle={5}
                     dataKey="value"
                   >
@@ -279,14 +281,15 @@ export default function Dashboard() {
                     contentStyle={{ 
                       background: 'hsl(var(--card))', 
                       border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
+                      borderRadius: '8px',
+                      fontSize: '12px'
                     }}
                   />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="flex flex-wrap gap-2 justify-center mt-2">
+              <div className="flex flex-wrap gap-1.5 justify-center mt-2">
                 {categoryData.map((cat, i) => (
-                  <Badge key={cat.name} variant="outline" className="text-xs" style={{ borderColor: COLORS[i % COLORS.length] }}>
+                  <Badge key={cat.name} variant="outline" className="text-[10px] sm:text-xs" style={{ borderColor: COLORS[i % COLORS.length] }}>
                     {cat.name}
                   </Badge>
                 ))}
@@ -298,21 +301,21 @@ export default function Dashboard() {
         {/* Recent Sales */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
           <Card className="glass">
-            <CardHeader>
-              <CardTitle className="font-display">Recent Sales</CardTitle>
+            <CardHeader className="pb-2">
+              <CardTitle className="font-display text-base sm:text-lg">Recent Sales</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-2 sm:p-6">
               {recentSales.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No sales yet</p>
+                <p className="text-muted-foreground text-center py-8 text-sm">No sales yet</p>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {recentSales.map((sale) => (
-                    <div key={sale.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                    <div key={sale.id} className="flex items-center justify-between p-2 sm:p-3 rounded-lg bg-muted/30">
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium truncate">{sale.inventory?.part_name}</p>
-                        <p className="text-sm text-muted-foreground">Qty: {sale.quantity_sold}</p>
+                        <p className="font-medium text-sm truncate">{sale.inventory?.part_name}</p>
+                        <p className="text-xs text-muted-foreground">Qty: {sale.quantity_sold}</p>
                       </div>
-                      <p className="font-display font-bold text-success">${Number(sale.total_price).toFixed(2)}</p>
+                      <p className="font-display text-sm font-bold text-success">${Number(sale.total_price).toFixed(2)}</p>
                     </div>
                   ))}
                 </div>
@@ -322,26 +325,26 @@ export default function Dashboard() {
         </motion.div>
 
         {/* Low Stock Items */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="md:col-span-2 lg:col-span-1">
           <Card className="glass">
-            <CardHeader>
-              <CardTitle className="font-display flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-warning" />
+            <CardHeader className="pb-2">
+              <CardTitle className="font-display flex items-center gap-2 text-base sm:text-lg">
+                <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-warning" />
                 Low Stock Alerts
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-2 sm:p-6">
               {lowStockItems.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">All items well stocked</p>
+                <p className="text-muted-foreground text-center py-8 text-sm">All items well stocked</p>
               ) : (
-                <div className="space-y-3">
-                  {lowStockItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                <div className="space-y-2">
+                  {lowStockItems.slice(0, 4).map((item) => (
+                    <div key={item.id} className="flex items-center justify-between p-2 sm:p-3 rounded-lg bg-muted/30">
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium truncate">{item.part_name}</p>
-                        <p className="text-sm text-muted-foreground">{item.part_number}</p>
+                        <p className="font-medium text-sm truncate">{item.part_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{item.part_number}</p>
                       </div>
-                      <Badge variant="destructive">{item.quantity} left</Badge>
+                      <Badge variant="destructive" className="text-xs shrink-0">{item.quantity} left</Badge>
                     </div>
                   ))}
                 </div>
