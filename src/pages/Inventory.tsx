@@ -164,20 +164,20 @@ export default function Inventory() {
                 </div>
                 <div>
                   <Label>Year From</Label>
-                  <Select value={form.car_year_from} onValueChange={v => setForm({...form, car_year_from: v})}>
+                  <Select value={form.car_year_from || "__none__"} onValueChange={v => setForm({...form, car_year_from: v === "__none__" ? "" : v})}>
                     <SelectTrigger><SelectValue placeholder="From year" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Any</SelectItem>
+                      <SelectItem value="__none__">Any</SelectItem>
                       {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
                   <Label>Year To</Label>
-                  <Select value={form.car_year_to} onValueChange={v => setForm({...form, car_year_to: v})}>
+                  <Select value={form.car_year_to || "__none__"} onValueChange={v => setForm({...form, car_year_to: v === "__none__" ? "" : v})}>
                     <SelectTrigger><SelectValue placeholder="To year" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Any</SelectItem>
+                      <SelectItem value="__none__">Any</SelectItem>
                       {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
                     </SelectContent>
                   </Select>
