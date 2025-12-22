@@ -283,24 +283,24 @@ export default function Purchases() {
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <Input placeholder="Part Number" value={item.part_number} onChange={e => updateItem(i, 'part_number', e.target.value)} />
-                      <Select value={item.brand} onValueChange={v => updateItem(i, 'brand', v)}>
+                      <Select value={item.brand || "__none__"} onValueChange={v => updateItem(i, 'brand', v === "__none__" ? "" : v)}>
                         <SelectTrigger><SelectValue placeholder="Brand" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">No Brand</SelectItem>
+                          <SelectItem value="__none__">No Brand</SelectItem>
                           {COMMON_BRANDS.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
                         </SelectContent>
                       </Select>
-                      <Select value={item.car_year_from} onValueChange={v => updateItem(i, 'car_year_from', v)}>
+                      <Select value={item.car_year_from || "__none__"} onValueChange={v => updateItem(i, 'car_year_from', v === "__none__" ? "" : v)}>
                         <SelectTrigger><SelectValue placeholder="Year From" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Any</SelectItem>
+                          <SelectItem value="__none__">Any</SelectItem>
                           {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
                         </SelectContent>
                       </Select>
-                      <Select value={item.car_year_to} onValueChange={v => updateItem(i, 'car_year_to', v)}>
+                      <Select value={item.car_year_to || "__none__"} onValueChange={v => updateItem(i, 'car_year_to', v === "__none__" ? "" : v)}>
                         <SelectTrigger><SelectValue placeholder="Year To" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">Any</SelectItem>
+                          <SelectItem value="__none__">Any</SelectItem>
                           {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
                         </SelectContent>
                       </Select>
