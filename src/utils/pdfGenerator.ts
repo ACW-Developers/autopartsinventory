@@ -4,6 +4,8 @@ import autoTable from 'jspdf-autotable';
 interface ReceiptItem {
   name: string;
   partNumber: string;
+  brand?: string | null;
+  yearRange?: string;
   quantity: number;
   price: number;
   total: number;
@@ -26,7 +28,7 @@ export function generateReceiptPDF(data: ReceiptData): jsPDF {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
-    format: [80, 200] // Receipt paper size
+    format: [80, 220] // Receipt paper size - slightly taller for more details
   });
 
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -56,11 +58,23 @@ export function generateReceiptPDF(data: ReceiptData): jsPDF {
   // Items
   doc.setFontSize(7);
   data.items.forEach(item => {
+    // Item name
+    doc.setFont('helvetica', 'bold');
     doc.text(item.name, 5, y);
     y += 3;
-    doc.text(`  ${item.partNumber} x${item.quantity} @ $${item.price.toFixed(2)}`, 5, y);
+    
+    // Part number and details
+    doc.setFont('helvetica', 'normal');
+    let detailLine = item.partNumber;
+    if (item.brand) detailLine += ` | ${item.brand}`;
+    if (item.yearRange) detailLine += ` | ${item.yearRange}`;
+    doc.text(`  ${detailLine}`, 5, y);
+    y += 3;
+    
+    // Quantity and price
+    doc.text(`  ${item.quantity} x $${item.price.toFixed(2)}`, 5, y);
     doc.text(`$${item.total.toFixed(2)}`, pageWidth - 5, y, { align: 'right' });
-    y += 4;
+    y += 5;
   });
 
   // Divider
@@ -203,6 +217,8 @@ interface InventoryReportData {
     partNumber: string;
     partName: string;
     category: string;
+    brand?: string;
+    yearRange?: string;
     quantity: number;
     costPrice: number;
     sellingPrice: number;
@@ -255,13 +271,15 @@ export function generateInventoryReportPDF(data: InventoryReportData): jsPDF {
 
   y += 30;
 
-  // Inventory Table
+  // Inventory Table with brand and year
   autoTable(doc, {
     startY: y,
-    head: [['Part #', 'Name', 'Category', 'Qty', 'Cost', 'Price', 'Stock Value', 'Status']],
+    head: [['Part #', 'Name', 'Brand', 'Year', 'Category', 'Qty', 'Cost', 'Price', 'Value', 'Status']],
     body: data.items.map(item => [
       item.partNumber,
       item.partName,
+      item.brand || '-',
+      item.yearRange || '-',
       item.category,
       item.quantity.toString(),
       `$${item.costPrice.toFixed(2)}`,
@@ -272,12 +290,18 @@ export function generateInventoryReportPDF(data: InventoryReportData): jsPDF {
     theme: 'striped',
     headStyles: { fillColor: [139, 92, 246] },
     margin: { left: 10, right: 10 },
-    styles: { fontSize: 8 },
+    styles: { fontSize: 7 },
     columnStyles: {
-      0: { cellWidth: 25 },
-      1: { cellWidth: 50 },
-      2: { cellWidth: 30 },
-      7: { cellWidth: 25 }
+      0: { cellWidth: 22 },
+      1: { cellWidth: 40 },
+      2: { cellWidth: 22 },
+      3: { cellWidth: 18 },
+      4: { cellWidth: 28 },
+      5: { cellWidth: 15 },
+      6: { cellWidth: 18 },
+      7: { cellWidth: 18 },
+      8: { cellWidth: 22 },
+      9: { cellWidth: 20 }
     }
   });
 
