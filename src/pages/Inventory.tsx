@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Edit, Trash2, Package, AlertTriangle } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Package, AlertTriangle, Upload, Image as ImageIcon, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 
@@ -29,8 +29,12 @@ export default function Inventory() {
   const [form, setForm] = useState({
     part_name: '', part_number: '', category: '', category_id: '', supplier_id: '',
     quantity: 0, cost_price: 0, selling_price: 0, reorder_level: 10,
-    brand: '', car_year_from: '', car_year_to: ''
+    brand: '', car_year_from: '', car_year_to: '', image_url: ''
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => { fetchData(); }, []);
@@ -46,11 +50,52 @@ export default function Inventory() {
     setCategories(catRes.data || []);
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast({ title: 'File too large', description: 'Max file size is 5MB', variant: 'destructive' });
+        return;
+      }
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const uploadImage = async (file: File): Promise<string | null> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    
+    const { error } = await supabase.storage.from('product-images').upload(fileName, file);
+    if (error) {
+      toast({ title: 'Upload failed', description: error.message, variant: 'destructive' });
+      return null;
+    }
+    
+    const { data: { publicUrl } } = supabase.storage.from('product-images').getPublicUrl(fileName);
+    return publicUrl;
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setForm({ ...form, image_url: '' });
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.part_name || !form.part_number) {
       toast({ title: 'Required fields missing', description: 'Part name and number are required', variant: 'destructive' });
       return;
+    }
+
+    setUploading(true);
+    let imageUrl = form.image_url;
+    
+    if (imageFile) {
+      const uploadedUrl = await uploadImage(imageFile);
+      if (uploadedUrl) imageUrl = uploadedUrl;
     }
 
     const selectedCategory = categories.find(c => c.id === form.category_id);
@@ -66,18 +111,20 @@ export default function Inventory() {
       reorder_level: form.reorder_level,
       brand: form.brand || null,
       car_year_from: form.car_year_from ? parseInt(form.car_year_from) : null,
-      car_year_to: form.car_year_to ? parseInt(form.car_year_to) : null
+      car_year_to: form.car_year_to ? parseInt(form.car_year_to) : null,
+      image_url: imageUrl || null
     };
 
     if (editingItem) {
       const { error } = await supabase.from('inventory').update(payload).eq('id', editingItem.id);
-      if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+      if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); setUploading(false); return; }
       toast({ title: 'Updated', description: 'Item updated successfully' });
     } else {
       const { error } = await supabase.from('inventory').insert(payload);
-      if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
+      if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); setUploading(false); return; }
       toast({ title: 'Added', description: 'Item added to inventory' });
     }
+    setUploading(false);
     setDialogOpen(false);
     resetForm();
     fetchData();
@@ -91,8 +138,11 @@ export default function Inventory() {
   };
 
   const resetForm = () => {
-    setForm({ part_name: '', part_number: '', category: '', category_id: '', supplier_id: '', quantity: 0, cost_price: 0, selling_price: 0, reorder_level: 10, brand: '', car_year_from: '', car_year_to: '' });
+    setForm({ part_name: '', part_number: '', category: '', category_id: '', supplier_id: '', quantity: 0, cost_price: 0, selling_price: 0, reorder_level: 10, brand: '', car_year_from: '', car_year_to: '', image_url: '' });
     setEditingItem(null);
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const openEdit = (item: any) => {
@@ -109,8 +159,10 @@ export default function Inventory() {
       reorder_level: item.reorder_level,
       brand: item.brand || '',
       car_year_from: item.car_year_from?.toString() || '',
-      car_year_to: item.car_year_to?.toString() || ''
+      car_year_to: item.car_year_to?.toString() || '',
+      image_url: item.image_url || ''
     });
+    setImagePreview(item.image_url || null);
     setDialogOpen(true);
   };
 
@@ -210,7 +262,61 @@ export default function Inventory() {
                 <div><Label>Selling Price ($)</Label><Input type="number" step="0.01" min="0" value={form.selling_price} onChange={e => setForm({...form, selling_price: +e.target.value})} /></div>
                 <div><Label>Reorder Level</Label><Input type="number" min="0" value={form.reorder_level} onChange={e => setForm({...form, reorder_level: +e.target.value})} /></div>
               </div>
-              <Button type="submit" className="w-full">{editingItem ? 'Update' : 'Add'} Item</Button>
+              
+              {/* Image Upload */}
+              <div className="space-y-2">
+                <Label>Product Image</Label>
+                <div className="flex items-center gap-4">
+                  {(imagePreview || form.image_url) ? (
+                    <div className="relative">
+                      <img 
+                        src={imagePreview || form.image_url} 
+                        alt="Product preview" 
+                        className="h-24 w-24 object-cover rounded-lg border border-border"
+                      />
+                      <Button 
+                        type="button" 
+                        variant="destructive" 
+                        size="icon" 
+                        className="absolute -top-2 -right-2 h-6 w-6"
+                        onClick={removeImage}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div 
+                      className="h-24 w-24 border-2 border-dashed border-border rounded-lg flex items-center justify-center cursor-pointer hover:border-primary/50 transition-colors"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <ImageIcon className="h-8 w-8 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="hidden"
+                    />
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {imagePreview || form.image_url ? 'Change Image' : 'Upload Image'}
+                    </Button>
+                    <p className="text-xs text-muted-foreground mt-1">Max 5MB. JPG, PNG, WebP</p>
+                  </div>
+                </div>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={uploading}>
+                {uploading ? 'Uploading...' : (editingItem ? 'Update' : 'Add')} Item
+              </Button>
             </form>
           </DialogContent>
         </Dialog>
@@ -284,9 +390,10 @@ export default function Inventory() {
       {/* Table */}
       <Card className="glass">
         <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full min-w-[800px]">
+          <table className="w-full min-w-[900px]">
             <thead>
               <tr className="border-b border-border/50">
+                <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Image</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Part</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Brand / Year</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Category</th>
@@ -300,6 +407,15 @@ export default function Inventory() {
             <tbody>
               {filtered.map(item => (
                 <tr key={item.id} className="border-b border-border/30 hover:bg-muted/30 transition-colors">
+                  <td className="px-4 py-3">
+                    {item.image_url ? (
+                      <img src={item.image_url} alt={item.part_name} className="h-12 w-12 object-cover rounded-lg" />
+                    ) : (
+                      <div className="h-12 w-12 bg-muted rounded-lg flex items-center justify-center">
+                        <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <div>
                       <p className="font-medium">{item.part_name}</p>
