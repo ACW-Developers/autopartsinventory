@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ShoppingCart, Plus, Minus, Trash2, User, Tag, Printer, X, Search, Scan, FileText } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, User, Tag, Printer, X, Search, Scan, FileText, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { motion } from 'framer-motion';
@@ -17,6 +17,8 @@ import { generateReceiptPDF } from '@/utils/pdfGenerator';
 interface CartItem { inventory: any; quantity: number; }
 interface Customer { id: string; name: string; phone: string | null; email: string | null; }
 interface Discount { id: string; code: string; discount_type: string; discount_value: number; min_purchase: number | null; used_count: number; max_uses: number | null; valid_until: string | null; }
+
+const ITEMS_PER_PAGE = 10;
 
 export default function POS() {
   const [items, setItems] = useState<any[]>([]);
@@ -32,6 +34,7 @@ export default function POS() {
   const [receiptData, setReceiptData] = useState<any>(null);
   const [businessName, setBusinessName] = useState('AutoParts AZ');
   const [showScanner, setShowScanner] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const receiptRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const { toast } = useToast();
@@ -304,6 +307,15 @@ export default function POS() {
     (i.brand && i.brand.toLowerCase().includes(search.toLowerCase()))
   );
 
+  // Pagination
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginatedItems = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -324,37 +336,97 @@ export default function POS() {
               Scan
             </Button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 max-h-[65vh] overflow-auto pr-2">
-            {filtered.map((item, i) => (
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {paginatedItems.map((item, i) => (
               <motion.div key={item.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.02 }}>
                 <Card className="glass cursor-pointer hover:shadow-lg hover:border-primary/50 transition-all" onClick={() => addToCart(item)}>
                   <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1 min-w-0">
+                    {/* Product Image */}
+                    <div className="mb-3 relative">
+                      {item.image_url ? (
+                        <img 
+                          src={item.image_url} 
+                          alt={item.part_name} 
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                      ) : (
+                        <div className="w-full h-32 bg-muted rounded-lg flex items-center justify-center">
+                          <ImageIcon className="h-10 w-10 text-muted-foreground" />
+                        </div>
+                      )}
+                      <Badge 
+                        variant={item.quantity <= item.reorder_level ? 'destructive' : 'secondary'} 
+                        className="absolute top-2 right-2"
+                      >
+                        {item.quantity} in stock
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div>
                         <p className="font-medium truncate">{item.part_name}</p>
                         <p className="text-sm text-muted-foreground">{item.part_number}</p>
                       </div>
-                      <Badge variant={item.quantity <= item.reorder_level ? 'destructive' : 'secondary'} className="ml-2 shrink-0">
-                        {item.quantity}
-                      </Badge>
+                      <div className="flex flex-wrap gap-1">
+                        {item.brand && (
+                          <Badge variant="outline" className="text-xs">{item.brand}</Badge>
+                        )}
+                        {formatYearRange(item.car_year_from, item.car_year_to) && (
+                          <Badge variant="outline" className="text-xs">{formatYearRange(item.car_year_from, item.car_year_to)}</Badge>
+                        )}
+                        {item.categories?.name && (
+                          <Badge variant="outline" className="text-xs">{item.categories.name}</Badge>
+                        )}
+                      </div>
+                      <p className="font-display font-bold text-primary text-lg">${Number(item.selling_price).toFixed(2)}</p>
                     </div>
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {item.brand && (
-                        <Badge variant="outline" className="text-xs">{item.brand}</Badge>
-                      )}
-                      {formatYearRange(item.car_year_from, item.car_year_to) && (
-                        <Badge variant="outline" className="text-xs">{formatYearRange(item.car_year_from, item.car_year_to)}</Badge>
-                      )}
-                      {item.categories?.name && (
-                        <Badge variant="outline" className="text-xs">{item.categories.name}</Badge>
-                      )}
-                    </div>
-                    <p className="font-display font-bold text-primary text-lg">${Number(item.selling_price).toFixed(2)}</p>
                   </CardContent>
                 </Card>
               </motion.div>
             ))}
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-4">
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <Button
+                    key={page}
+                    variant={currentPage === page ? 'default' : 'outline'}
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setCurrentPage(page)}
+                  >
+                    {page}
+                  </Button>
+                ))}
+              </div>
+              
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              
+              <span className="text-sm text-muted-foreground ml-2">
+                {filtered.length} items
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Cart */}
