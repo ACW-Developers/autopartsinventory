@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ShoppingCart, Plus, Minus, Trash2, User, Tag, Printer, X, Search, Scan, FileText } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Trash2, User, Tag, Printer, X, Search, Scan, FileText, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { motion } from 'framer-motion';
@@ -17,6 +17,8 @@ import { generateReceiptPDF } from '@/utils/pdfGenerator';
 interface CartItem { inventory: any; quantity: number; }
 interface Customer { id: string; name: string; phone: string | null; email: string | null; }
 interface Discount { id: string; code: string; discount_type: string; discount_value: number; min_purchase: number | null; used_count: number; max_uses: number | null; valid_until: string | null; }
+
+const ITEMS_PER_PAGE = 10;
 
 export default function POS() {
   const [items, setItems] = useState<any[]>([]);
@@ -32,6 +34,7 @@ export default function POS() {
   const [receiptData, setReceiptData] = useState<any>(null);
   const [businessName, setBusinessName] = useState('AutoParts AZ');
   const [showScanner, setShowScanner] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const receiptRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const { toast } = useToast();
@@ -55,6 +58,13 @@ export default function POS() {
   const fetchBusinessName = async () => {
     const { data } = await supabase.from('settings').select('value').eq('key', 'business_name').single();
     if (data?.value) setBusinessName(data.value);
+  };
+
+  const formatYearRange = (from: number | null, to: number | null) => {
+    if (from && to) return `${from}-${to}`;
+    if (from) return `${from}+`;
+    if (to) return `Up to ${to}`;
+    return '';
   };
 
   const handleBarcodeScan = (code: string) => {
@@ -180,7 +190,7 @@ export default function POS() {
       await supabase.from('discounts').update({ used_count: appliedDiscount.used_count + 1 }).eq('id', appliedDiscount.id);
     }
     
-    // Prepare receipt data
+    // Prepare receipt data with brand and year info
     setReceiptData({
       receiptNumber,
       date: new Date().toLocaleString(),
@@ -188,6 +198,8 @@ export default function POS() {
       items: cart.map(c => ({
         name: c.inventory.part_name,
         partNumber: c.inventory.part_number,
+        brand: c.inventory.brand || null,
+        yearRange: formatYearRange(c.inventory.car_year_from, c.inventory.car_year_to),
         quantity: c.quantity,
         price: Number(c.inventory.selling_price),
         total: c.quantity * Number(c.inventory.selling_price)
@@ -224,8 +236,12 @@ export default function POS() {
               .header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 10px; margin-bottom: 10px; }
               .header h1 { font-size: 18px; margin: 0; }
               .header p { margin: 5px 0; font-size: 12px; }
-              .item { display: flex; justify-content: space-between; font-size: 12px; margin: 5px 0; }
+              .item { font-size: 12px; margin: 8px 0; border-bottom: 1px dotted #ccc; padding-bottom: 8px; }
+              .item-name { font-weight: bold; }
+              .item-details { color: #666; font-size: 10px; margin: 2px 0; }
+              .item-price { display: flex; justify-content: space-between; margin-top: 4px; }
               .divider { border-top: 1px dashed #000; margin: 10px 0; }
+              .total-line { display: flex; justify-content: space-between; font-size: 12px; margin: 5px 0; }
               .total { font-weight: bold; font-size: 14px; }
               .footer { text-align: center; margin-top: 20px; font-size: 11px; }
             </style>
@@ -239,22 +255,30 @@ export default function POS() {
             </div>
             ${receiptData?.items.map((item: any) => `
               <div class="item">
-                <span>${item.name} x${item.quantity}</span>
-                <span>$${item.total.toFixed(2)}</span>
+                <div class="item-name">${item.name}</div>
+                <div class="item-details">
+                  ${item.partNumber}
+                  ${item.brand ? ` | ${item.brand}` : ''}
+                  ${item.yearRange ? ` | ${item.yearRange}` : ''}
+                </div>
+                <div class="item-price">
+                  <span>${item.quantity} x $${item.price.toFixed(2)}</span>
+                  <span>$${item.total.toFixed(2)}</span>
+                </div>
               </div>
             `).join('')}
             <div class="divider"></div>
-            <div class="item">
+            <div class="total-line">
               <span>Subtotal:</span>
               <span>$${receiptData?.subtotal.toFixed(2)}</span>
             </div>
             ${receiptData?.discount > 0 ? `
-              <div class="item" style="color: green;">
+              <div class="total-line" style="color: green;">
                 <span>Discount (${receiptData?.discountCode}):</span>
                 <span>-$${receiptData?.discount.toFixed(2)}</span>
               </div>
             ` : ''}
-            <div class="item total">
+            <div class="total-line total">
               <span>TOTAL:</span>
               <span>$${receiptData?.total.toFixed(2)}</span>
             </div>
@@ -271,10 +295,26 @@ export default function POS() {
     }
   };
 
+  const handleDownloadPDF = () => {
+    if (!receiptData) return;
+    const doc = generateReceiptPDF({ ...receiptData, businessName });
+    doc.save(`receipt-${receiptData.receiptNumber}.pdf`);
+  };
+
   const filtered = items.filter(i => 
     i.part_name.toLowerCase().includes(search.toLowerCase()) || 
-    i.part_number.toLowerCase().includes(search.toLowerCase())
+    i.part_number.toLowerCase().includes(search.toLowerCase()) ||
+    (i.brand && i.brand.toLowerCase().includes(search.toLowerCase()))
   );
+
+  // Pagination
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginatedItems = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
 
   return (
     <div className="space-y-6">
@@ -286,39 +326,107 @@ export default function POS() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Products Grid */}
         <div className="lg:col-span-2 space-y-4">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
+          <div className="flex gap-2 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search by name or part number..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+              <Input placeholder="Search by name, part number, or brand..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
             </div>
             <Button variant="outline" onClick={() => setShowScanner(true)} className="shrink-0">
               <Scan className="h-4 w-4 mr-2" />
-              Scan Barcode
+              Scan
             </Button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 max-h-[65vh] overflow-auto pr-2">
-            {filtered.map((item, i) => (
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {paginatedItems.map((item, i) => (
               <motion.div key={item.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.02 }}>
                 <Card className="glass cursor-pointer hover:shadow-lg hover:border-primary/50 transition-all" onClick={() => addToCart(item)}>
                   <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1 min-w-0">
+                    {/* Product Image */}
+                    <div className="mb-3 relative">
+                      {item.image_url ? (
+                        <img 
+                          src={item.image_url} 
+                          alt={item.part_name} 
+                          className="w-full h-32 object-cover rounded-lg"
+                        />
+                      ) : (
+                        <div className="w-full h-32 bg-muted rounded-lg flex items-center justify-center">
+                          <ImageIcon className="h-10 w-10 text-muted-foreground" />
+                        </div>
+                      )}
+                      <Badge 
+                        variant={item.quantity <= item.reorder_level ? 'destructive' : 'secondary'} 
+                        className="absolute top-2 right-2"
+                      >
+                        {item.quantity} in stock
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div>
                         <p className="font-medium truncate">{item.part_name}</p>
                         <p className="text-sm text-muted-foreground">{item.part_number}</p>
                       </div>
-                      <Badge variant={item.quantity <= item.reorder_level ? 'destructive' : 'secondary'} className="ml-2 shrink-0">
-                        {item.quantity}
-                      </Badge>
+                      <div className="flex flex-wrap gap-1">
+                        {item.brand && (
+                          <Badge variant="outline" className="text-xs">{item.brand}</Badge>
+                        )}
+                        {formatYearRange(item.car_year_from, item.car_year_to) && (
+                          <Badge variant="outline" className="text-xs">{formatYearRange(item.car_year_from, item.car_year_to)}</Badge>
+                        )}
+                        {item.categories?.name && (
+                          <Badge variant="outline" className="text-xs">{item.categories.name}</Badge>
+                        )}
+                      </div>
+                      <p className="font-display font-bold text-primary text-lg">${Number(item.selling_price).toFixed(2)}</p>
                     </div>
-                    {item.categories?.name && (
-                      <Badge variant="outline" className="text-xs mb-2">{item.categories.name}</Badge>
-                    )}
-                    <p className="font-display font-bold text-primary text-lg">${Number(item.selling_price).toFixed(2)}</p>
                   </CardContent>
                 </Card>
               </motion.div>
             ))}
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 pt-4">
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <Button
+                    key={page}
+                    variant={currentPage === page ? 'default' : 'outline'}
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setCurrentPage(page)}
+                  >
+                    {page}
+                  </Button>
+                ))}
+              </div>
+              
+              <Button 
+                variant="outline" 
+                size="icon"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              
+              <span className="text-sm text-muted-foreground ml-2">
+                {filtered.length} items
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Cart */}
@@ -359,16 +467,25 @@ export default function POS() {
               <>
                 <div className="space-y-2 max-h-[200px] overflow-auto">
                   {cart.map(c => (
-                    <div key={c.inventory.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{c.inventory.part_name}</p>
-                        <p className="text-xs text-muted-foreground">${Number(c.inventory.selling_price).toFixed(2)} each</p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(c.inventory.id, -1)}><Minus className="h-3 w-3" /></Button>
-                        <span className="w-8 text-center font-medium text-sm">{c.quantity}</span>
-                        <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(c.inventory.id, 1)}><Plus className="h-3 w-3" /></Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeFromCart(c.inventory.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                    <div key={c.inventory.id} className="p-3 rounded-lg bg-muted/30">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{c.inventory.part_name}</p>
+                          <p className="text-xs text-muted-foreground">{c.inventory.part_number}</p>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {c.inventory.brand && <Badge variant="outline" className="text-xs py-0">{c.inventory.brand}</Badge>}
+                            {formatYearRange(c.inventory.car_year_from, c.inventory.car_year_to) && (
+                              <Badge variant="outline" className="text-xs py-0">{formatYearRange(c.inventory.car_year_from, c.inventory.car_year_to)}</Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">${Number(c.inventory.selling_price).toFixed(2)} each</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(c.inventory.id, -1)}><Minus className="h-3 w-3" /></Button>
+                          <span className="w-8 text-center font-medium text-sm">{c.quantity}</span>
+                          <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => updateQty(c.inventory.id, 1)}><Plus className="h-3 w-3" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeFromCart(c.inventory.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -410,7 +527,7 @@ export default function POS() {
                   </div>
                 </div>
 
-                <Button className="w-full glow" size="lg" onClick={completeSale} disabled={loading}>
+                <Button className="w-full glow" size="lg" onClick={completeSale} disabled={loading || cart.length === 0}>
                   {loading ? 'Processing...' : 'Complete Sale'}
                 </Button>
               </>
@@ -421,32 +538,36 @@ export default function POS() {
 
       {/* Receipt Dialog */}
       <Dialog open={showReceipt} onOpenChange={setShowReceipt}>
-        <DialogContent className="glass max-w-md">
+        <DialogContent className="glass max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-display flex items-center gap-2">
-              <Printer className="h-5 w-5" />Receipt
-            </DialogTitle>
+            <DialogTitle className="font-display">Receipt</DialogTitle>
           </DialogHeader>
-          <div ref={receiptRef} className="space-y-4 p-4 bg-background rounded-lg border">
-            <div className="text-center border-b border-dashed pb-4">
+          <div ref={receiptRef} className="space-y-4 py-4">
+            <div className="text-center border-b border-dashed border-border pb-4">
               <h2 className="font-display font-bold text-lg">{businessName}</h2>
               <p className="text-sm text-muted-foreground">Receipt: {receiptData?.receiptNumber}</p>
               <p className="text-sm text-muted-foreground">{receiptData?.date}</p>
               <p className="text-sm">Customer: {receiptData?.customerName}</p>
             </div>
             
-            <div className="space-y-2">
+            <div className="space-y-3">
               {receiptData?.items.map((item: any, i: number) => (
-                <div key={i} className="flex justify-between text-sm">
-                  <span>{item.name} x{item.quantity}</span>
-                  <span>${item.total.toFixed(2)}</span>
+                <div key={i} className="border-b border-dotted border-border pb-2">
+                  <p className="font-medium text-sm">{item.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.partNumber}
+                    {item.brand && ` | ${item.brand}`}
+                    {item.yearRange && ` | ${item.yearRange}`}
+                  </p>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span>{item.quantity} x ${item.price.toFixed(2)}</span>
+                    <span>${item.total.toFixed(2)}</span>
+                  </div>
                 </div>
               ))}
             </div>
 
-            <Separator className="border-dashed" />
-
-            <div className="space-y-1">
+            <div className="border-t border-dashed border-border pt-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span>Subtotal:</span>
                 <span>${receiptData?.subtotal.toFixed(2)}</span>
@@ -457,35 +578,29 @@ export default function POS() {
                   <span>-${receiptData?.discount.toFixed(2)}</span>
                 </div>
               )}
-              <div className="flex justify-between font-bold pt-2 border-t">
+              <div className="flex justify-between font-bold">
                 <span>TOTAL:</span>
                 <span>${receiptData?.total.toFixed(2)}</span>
               </div>
             </div>
 
-            <div className="text-center text-sm text-muted-foreground pt-4 border-t border-dashed">
+            <div className="text-center border-t border-dashed border-border pt-4 text-sm text-muted-foreground">
               <p>Cashier: {receiptData?.cashier}</p>
-              <p className="mt-2">Thank you for your business!</p>
+              <p>Thank you for your business!</p>
             </div>
           </div>
           <div className="flex gap-2">
-            <Button className="flex-1" onClick={printReceipt}><Printer className="h-4 w-4 mr-2" />Print</Button>
-            <Button 
-              variant="outline" 
-              className="flex-1" 
-              onClick={() => {
-                const pdf = generateReceiptPDF({ ...receiptData, businessName });
-                pdf.save(`receipt-${receiptData?.receiptNumber}.pdf`);
-              }}
-            >
-              <FileText className="h-4 w-4 mr-2" />Save PDF
+            <Button variant="outline" className="flex-1" onClick={printReceipt}>
+              <Printer className="h-4 w-4 mr-2" />Print
             </Button>
-            <Button variant="outline" className="flex-1" onClick={() => setShowReceipt(false)}>Close</Button>
+            <Button className="flex-1" onClick={handleDownloadPDF}>
+              <FileText className="h-4 w-4 mr-2" />Download PDF
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Barcode Scanner Dialog */}
+      {/* Barcode Scanner */}
       <BarcodeScanner 
         open={showScanner} 
         onClose={() => setShowScanner(false)} 

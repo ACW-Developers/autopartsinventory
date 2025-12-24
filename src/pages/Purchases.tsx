@@ -11,9 +11,18 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Package, Truck, CheckCircle, Clock, AlertCircle, PackageCheck, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Label } from '@/components/ui/label';
 
 interface Supplier { id: string; name: string; }
-interface InventoryItem { id: string; part_name: string; part_number: string; category: string; }
+interface InventoryItem { 
+  id: string; 
+  part_name: string; 
+  part_number: string; 
+  category: string;
+  brand: string | null;
+  car_year_from: number | null;
+  car_year_to: number | null;
+}
 interface PurchaseOrder {
   id: string;
   order_number: string;
@@ -31,7 +40,13 @@ interface OrderItem {
   quantity_received: number;
   unit_cost: number;
   inventory_id: string | null;
+  brand: string | null;
+  car_year_from: number | null;
+  car_year_to: number | null;
 }
+
+const COMMON_BRANDS = ['Toyota', 'Honda', 'Lexus', 'Nissan', 'Mazda', 'Mitsubishi', 'Subaru', 'Suzuki', 'Ford', 'Chevrolet', 'BMW', 'Mercedes-Benz', 'Volkswagen', 'Hyundai', 'Kia', 'Other'];
+const YEARS = Array.from({ length: 35 }, (_, i) => (2025 - i).toString());
 
 export default function Purchases() {
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
@@ -45,7 +60,7 @@ export default function Purchases() {
   const [form, setForm] = useState({ 
     supplier_id: '', 
     notes: '', 
-    items: [{ inventory_id: '', part_name: '', part_number: '', quantity: '', unit_cost: '' }] 
+    items: [{ inventory_id: '', part_name: '', part_number: '', quantity: '', unit_cost: '', brand: '', car_year_from: '', car_year_to: '' }] 
   });
   const { user } = useAuth();
   const { toast } = useToast();
@@ -67,11 +82,18 @@ export default function Purchases() {
   };
 
   const fetchInventory = async () => {
-    const { data } = await supabase.from('inventory').select('id, part_name, part_number, category').order('part_name');
+    const { data } = await supabase.from('inventory').select('id, part_name, part_number, category, brand, car_year_from, car_year_to').order('part_name');
     setInventoryItems(data || []);
   };
 
   const generateOrderNumber = () => `PO-${Date.now().toString(36).toUpperCase()}`;
+
+  const formatYearRange = (from: number | null, to: number | null) => {
+    if (from && to) return `${from}-${to}`;
+    if (from) return `${from}+`;
+    if (to) return `Up to ${to}`;
+    return '';
+  };
 
   const handleProductSelect = (index: number, inventoryId: string) => {
     const product = inventoryItems.find(p => p.id === inventoryId);
@@ -81,7 +103,10 @@ export default function Purchases() {
         ...newItems[index], 
         inventory_id: inventoryId,
         part_name: product.part_name, 
-        part_number: product.part_number 
+        part_number: product.part_number,
+        brand: product.brand || '',
+        car_year_from: product.car_year_from?.toString() || '',
+        car_year_to: product.car_year_to?.toString() || ''
       };
       setForm({ ...form, items: newItems });
     }
@@ -112,17 +137,20 @@ export default function Purchases() {
       part_number: i.part_number || null,
       quantity_ordered: Number(i.quantity),
       unit_cost: Number(i.unit_cost || 0),
+      brand: i.brand || null,
+      car_year_from: i.car_year_from ? parseInt(i.car_year_from) : null,
+      car_year_to: i.car_year_to ? parseInt(i.car_year_to) : null,
     }));
 
     await supabase.from('purchase_order_items').insert(itemsToInsert);
 
     toast({ title: 'Purchase Order Created', description: `Order ${orderNumber} created successfully` });
     setDialogOpen(false);
-    setForm({ supplier_id: '', notes: '', items: [{ inventory_id: '', part_name: '', part_number: '', quantity: '', unit_cost: '' }] });
+    setForm({ supplier_id: '', notes: '', items: [{ inventory_id: '', part_name: '', part_number: '', quantity: '', unit_cost: '', brand: '', car_year_from: '', car_year_to: '' }] });
     fetchOrders();
   };
 
-  const addItem = () => setForm({ ...form, items: [...form.items, { inventory_id: '', part_name: '', part_number: '', quantity: '', unit_cost: '' }] });
+  const addItem = () => setForm({ ...form, items: [...form.items, { inventory_id: '', part_name: '', part_number: '', quantity: '', unit_cost: '', brand: '', car_year_from: '', car_year_to: '' }] });
   
   const removeItem = (index: number) => {
     if (form.items.length > 1) {
@@ -206,7 +234,7 @@ export default function Purchases() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="font-display text-3xl font-bold gradient-text">Purchase Orders</h1>
           <p className="text-muted-foreground">Manage supplier orders and inventory receiving</p>
@@ -215,7 +243,7 @@ export default function Purchases() {
           <DialogTrigger asChild>
             <Button className="glow"><Plus className="mr-2 h-4 w-4" />New Purchase Order</Button>
           </DialogTrigger>
-          <DialogContent className="glass max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="glass max-w-4xl max-h-[85vh] overflow-y-auto">
             <DialogHeader><DialogTitle className="font-display">Create Purchase Order</DialogTitle></DialogHeader>
             <div className="space-y-4 py-4">
               <Select value={form.supplier_id} onValueChange={v => setForm({ ...form, supplier_id: v })}>
@@ -240,21 +268,44 @@ export default function Purchases() {
                         </Button>
                       )}
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <Select value={item.inventory_id} onValueChange={v => handleProductSelect(i, v)}>
                         <SelectTrigger><SelectValue placeholder="Select from inventory (optional)" /></SelectTrigger>
                         <SelectContent>
                           {inventoryItems.map(inv => (
                             <SelectItem key={inv.id} value={inv.id}>
-                              {inv.part_name} ({inv.part_number}) - {inv.category}
+                              {inv.part_name} ({inv.part_number}) {inv.brand && `- ${inv.brand}`} {formatYearRange(inv.car_year_from, inv.car_year_to) && `(${formatYearRange(inv.car_year_from, inv.car_year_to)})`}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       <Input placeholder="Or enter part name manually" value={item.part_name} onChange={e => updateItem(i, 'part_name', e.target.value)} />
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       <Input placeholder="Part Number" value={item.part_number} onChange={e => updateItem(i, 'part_number', e.target.value)} />
+                      <Select value={item.brand || "__none__"} onValueChange={v => updateItem(i, 'brand', v === "__none__" ? "" : v)}>
+                        <SelectTrigger><SelectValue placeholder="Brand" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No Brand</SelectItem>
+                          {COMMON_BRANDS.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Select value={item.car_year_from || "__none__"} onValueChange={v => updateItem(i, 'car_year_from', v === "__none__" ? "" : v)}>
+                        <SelectTrigger><SelectValue placeholder="Year From" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Any</SelectItem>
+                          {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Select value={item.car_year_to || "__none__"} onValueChange={v => updateItem(i, 'car_year_to', v === "__none__" ? "" : v)}>
+                        <SelectTrigger><SelectValue placeholder="Year To" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Any</SelectItem>
+                          {YEARS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
                       <Input type="number" placeholder="Quantity *" value={item.quantity} onChange={e => updateItem(i, 'quantity', e.target.value)} />
                       <Input type="number" step="0.01" placeholder="Unit Cost ($)" value={item.unit_cost} onChange={e => updateItem(i, 'unit_cost', e.target.value)} />
                     </div>
@@ -284,13 +335,13 @@ export default function Purchases() {
           <motion.div key={order.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}>
             <Card className="glass hover:shadow-lg transition-all">
               <CardContent className="p-6">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-4">
                   <div className="flex items-center gap-4">
                     <div className="h-12 w-12 rounded-lg bg-primary/20 flex items-center justify-center">
                       <Package className="h-6 w-6 text-primary" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-display font-bold">{order.order_number}</h3>
                         <Badge variant={getStatusVariant(order.status)} className="flex items-center gap-1">
                           {getStatusIcon(order.status)}
@@ -320,17 +371,23 @@ export default function Purchases() {
 
       {/* Receive Dialog */}
       <Dialog open={receiveDialogOpen} onOpenChange={setReceiveDialogOpen}>
-        <DialogContent className="glass max-w-2xl">
+        <DialogContent className="glass max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display">Receive Items - {selectedOrder?.order_number}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             {orderItems.map(item => (
-              <div key={item.id} className="flex items-center justify-between p-4 rounded-lg bg-muted/30">
-                <div>
+              <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-lg bg-muted/30 gap-3">
+                <div className="flex-1">
                   <p className="font-medium">{item.part_name}</p>
-                  {item.part_number && <p className="text-sm text-muted-foreground">{item.part_number}</p>}
-                  <p className="text-sm">Ordered: {item.quantity_ordered} | Received: {item.quantity_received}</p>
+                  <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                    {item.part_number && <span>{item.part_number}</span>}
+                    {item.brand && <Badge variant="outline" className="text-xs">{item.brand}</Badge>}
+                    {formatYearRange(item.car_year_from, item.car_year_to) && (
+                      <span className="text-xs">({formatYearRange(item.car_year_from, item.car_year_to)})</span>
+                    )}
+                  </div>
+                  <p className="text-sm mt-1">Ordered: {item.quantity_ordered} | Received: {item.quantity_received}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   {item.quantity_received < item.quantity_ordered ? (

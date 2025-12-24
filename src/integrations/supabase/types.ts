@@ -118,11 +118,15 @@ export type Database = {
       }
       inventory: {
         Row: {
+          brand: string | null
+          car_year_from: number | null
+          car_year_to: number | null
           category: string
           category_id: string | null
           cost_price: number
           created_at: string
           id: string
+          image_url: string | null
           part_name: string
           part_number: string
           quantity: number
@@ -132,11 +136,15 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          brand?: string | null
+          car_year_from?: number | null
+          car_year_to?: number | null
           category: string
           category_id?: string | null
           cost_price?: number
           created_at?: string
           id?: string
+          image_url?: string | null
           part_name: string
           part_number: string
           quantity?: number
@@ -146,11 +154,15 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          brand?: string | null
+          car_year_from?: number | null
+          car_year_to?: number | null
           category?: string
           category_id?: string | null
           cost_price?: number
           created_at?: string
           id?: string
+          image_url?: string | null
           part_name?: string
           part_number?: string
           quantity?: number
@@ -279,6 +291,9 @@ export type Database = {
       }
       purchase_order_items: {
         Row: {
+          brand: string | null
+          car_year_from: number | null
+          car_year_to: number | null
           created_at: string
           id: string
           inventory_id: string | null
@@ -290,6 +305,9 @@ export type Database = {
           unit_cost: number
         }
         Insert: {
+          brand?: string | null
+          car_year_from?: number | null
+          car_year_to?: number | null
           created_at?: string
           id?: string
           inventory_id?: string | null
@@ -301,6 +319,9 @@ export type Database = {
           unit_cost?: number
         }
         Update: {
+          brand?: string | null
+          car_year_from?: number | null
+          car_year_to?: number | null
           created_at?: string
           id?: string
           inventory_id?: string | null
