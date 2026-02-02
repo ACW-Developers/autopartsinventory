@@ -2,17 +2,16 @@ import { useState, useRef } from 'react';
 import { Outlet } from 'react-router-dom';
 import { AppSidebar } from './AppSidebar';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { useAuth } from '@/contexts/AuthContext';
-import { Badge } from '@/components/ui/badge';
+import { UserDropdown } from './UserDropdown';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { BackToTop } from '@/components/BackToTop';
 
 export function AppLayout() {
-  const { user, role } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
+  
   return (
     <div className="min-h-screen flex w-full bg-background">
       <AppSidebar mobileOpen={mobileMenuOpen} setMobileOpen={setMobileMenuOpen} />
@@ -29,15 +28,11 @@ export function AppLayout() {
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <span className="text-xs sm:text-sm text-muted-foreground hidden xs:inline">Welcome,</span>
-            <span className="font-medium text-sm sm:text-base text-foreground truncate max-w-[120px] sm:max-w-none">{user?.email}</span>
           </div>
           
-          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-            <Badge variant={role === 'admin' ? 'default' : 'secondary'} className="uppercase text-[10px] sm:text-xs">
-              {role}
-            </Badge>
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <ThemeToggle />
+            <UserDropdown />
           </div>
         </header>
 
