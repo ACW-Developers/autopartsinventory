@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Wrench, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { PasswordInput } from '@/components/PasswordInput';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -77,7 +78,7 @@ export default function Auth() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="password">Password</Label>
-                    <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="input-glow" />
+                    <PasswordInput id="password" value={password} onChange={(e) => setPassword(e.target.value)} required className="input-glow" />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -98,7 +99,7 @@ export default function Auth() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signupPassword">Password</Label>
-                    <Input id="signupPassword" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} className="input-glow" />
+                    <PasswordInput id="signupPassword" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} className="input-glow" />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}

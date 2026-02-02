@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { 
   LayoutDashboard, Package, Truck, ShoppingCart, BarChart3, Users, User, LogOut,
-  Menu, X, Wrench, Tag, Ticket, Settings, ClipboardList, UserCheck
+  Menu, X, Wrench, Tag, Ticket, Settings, ClipboardList, UserCheck, Activity
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,6 +24,7 @@ const mainNavItems = [
 
 const adminNavItems = [
   { title: 'Users', url: '/users', icon: Users },
+  { title: 'Activity Logs', url: '/activity-logs', icon: Activity },
   { title: 'Settings', url: '/settings', icon: Settings },
 ];
 
@@ -37,7 +38,7 @@ interface AppSidebarProps {
 }
 
 export function AppSidebar({ mobileOpen = false, setMobileOpen }: AppSidebarProps) {
-  const { signOut } = useAuth();
+  const { signOut, isAdmin, roleLoading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
@@ -94,10 +95,13 @@ export function AppSidebar({ mobileOpen = false, setMobileOpen }: AppSidebarProp
           <div className="space-y-1">{mainNavItems.map((item) => (<NavItem key={item.url} item={item} />))}</div>
         </div>
 
-        <div className="mb-4">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">Administration</p>
-          <div className="space-y-1">{adminNavItems.map((item) => (<NavItem key={item.url} item={item} />))}</div>
-        </div>
+        {/* Only show admin section if user is admin and role has loaded */}
+        {!roleLoading && isAdmin && (
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">Administration</p>
+            <div className="space-y-1">{adminNavItems.map((item) => (<NavItem key={item.url} item={item} />))}</div>
+          </div>
+        )}
 
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">Account</p>
@@ -190,10 +194,13 @@ export function AppSidebar({ mobileOpen = false, setMobileOpen }: AppSidebarProp
             <div className="space-y-1">{mainNavItems.map((item) => (<NavItem key={item.url} item={item} />))}</div>
           </div>
 
-          <div className="mb-4">
-            <AnimatePresence>{!collapsed && (<motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">Administration</motion.p>)}</AnimatePresence>
-            <div className="space-y-1">{adminNavItems.map((item) => (<NavItem key={item.url} item={item} />))}</div>
-          </div>
+          {/* Only show admin section if user is admin and role has loaded */}
+          {!roleLoading && isAdmin && (
+            <div className="mb-4">
+              <AnimatePresence>{!collapsed && (<motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">Administration</motion.p>)}</AnimatePresence>
+              <div className="space-y-1">{adminNavItems.map((item) => (<NavItem key={item.url} item={item} />))}</div>
+            </div>
+          )}
 
           <div>
             <AnimatePresence>{!collapsed && (<motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 mb-2">Account</motion.p>)}</AnimatePresence>
