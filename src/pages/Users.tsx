@@ -36,12 +36,12 @@ export default function Users() {
     userId: null,
     userName: ''
   });
-  const { isAdmin, user: currentUser } = useAuth();
+  const { isAdmin, user: currentUser, roleLoading } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (isAdmin) fetchUsers();
-  }, [isAdmin]);
+    if (!roleLoading && isAdmin) fetchUsers();
+  }, [isAdmin, roleLoading]);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -141,6 +141,18 @@ export default function Users() {
     
     setDeleteDialog({ open: false, userId: null, userName: '' });
   };
+
+  // Wait for role to load before showing access denied
+  if (roleLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-muted-foreground">Checking permissions...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAdmin) {
     return (
