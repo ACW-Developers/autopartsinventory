@@ -10,12 +10,11 @@ import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, Edit, Trash2, Package, AlertTriangle, Upload, Image as ImageIcon, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
+import { BrandModelCombobox } from '@/components/BrandModelCombobox';
+import { YEARS } from '@/data/brandModels';
 
 interface Category { id: string; name: string; }
 interface Supplier { id: string; name: string; }
-
-const COMMON_BRANDS = ['Toyota', 'Honda', 'Lexus', 'Nissan', 'Mazda', 'Mitsubishi', 'Subaru', 'Suzuki', 'Ford', 'Chevrolet', 'BMW', 'Mercedes-Benz', 'Volkswagen', 'Hyundai', 'Kia', 'Other'];
-const YEARS = Array.from({ length: 35 }, (_, i) => (2025 - i).toString());
 
 export default function Inventory() {
   const [items, setItems] = useState<any[]>([]);
@@ -29,7 +28,7 @@ export default function Inventory() {
   const [form, setForm] = useState({
     part_name: '', part_number: '', category: '', category_id: '', supplier_id: '',
     quantity: 0, cost_price: 0, selling_price: 0, reorder_level: 10,
-    brand: '', car_year_from: '', car_year_to: '', image_url: ''
+    brand: '', model: '', car_year_from: '', car_year_to: '', image_url: ''
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -110,6 +109,7 @@ export default function Inventory() {
       selling_price: form.selling_price,
       reorder_level: form.reorder_level,
       brand: form.brand || null,
+      model: form.model || null,
       car_year_from: form.car_year_from ? parseInt(form.car_year_from) : null,
       car_year_to: form.car_year_to ? parseInt(form.car_year_to) : null,
       image_url: imageUrl || null
@@ -138,7 +138,7 @@ export default function Inventory() {
   };
 
   const resetForm = () => {
-    setForm({ part_name: '', part_number: '', category: '', category_id: '', supplier_id: '', quantity: 0, cost_price: 0, selling_price: 0, reorder_level: 10, brand: '', car_year_from: '', car_year_to: '', image_url: '' });
+    setForm({ part_name: '', part_number: '', category: '', category_id: '', supplier_id: '', quantity: 0, cost_price: 0, selling_price: 0, reorder_level: 10, brand: '', model: '', car_year_from: '', car_year_to: '', image_url: '' });
     setEditingItem(null);
     setImageFile(null);
     setImagePreview(null);
@@ -158,6 +158,7 @@ export default function Inventory() {
       selling_price: item.selling_price,
       reorder_level: item.reorder_level,
       brand: item.brand || '',
+      model: item.model || '',
       car_year_from: item.car_year_from?.toString() || '',
       car_year_to: item.car_year_to?.toString() || '',
       image_url: item.image_url || ''
@@ -203,17 +204,16 @@ export default function Inventory() {
                 <div><Label>Part Number *</Label><Input value={form.part_number} onChange={e => setForm({...form, part_number: e.target.value})} placeholder="e.g., BP-2024-001" required /></div>
               </div>
               
-              {/* Brand and Year Range */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <Label>Brand</Label>
-                  <Select value={form.brand} onValueChange={v => setForm({...form, brand: v})}>
-                    <SelectTrigger><SelectValue placeholder="Select brand" /></SelectTrigger>
-                    <SelectContent>
-                      {COMMON_BRANDS.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Brand and Model */}
+              <BrandModelCombobox
+                brand={form.brand}
+                model={form.model}
+                onBrandChange={(brand) => setForm({...form, brand, model: ''})}
+                onModelChange={(model) => setForm({...form, model})}
+              />
+
+              {/* Year Range */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <Label>Year From</Label>
                   <Select value={form.car_year_from || "__none__"} onValueChange={v => setForm({...form, car_year_from: v === "__none__" ? "" : v})}>
@@ -425,6 +425,7 @@ export default function Inventory() {
                   <td className="px-4 py-3">
                     <div className="space-y-1">
                       {item.brand && <Badge variant="outline" className="text-xs">{item.brand}</Badge>}
+                      {item.model && <p className="text-xs font-medium">{item.model}</p>}
                       {formatYearRange(item.car_year_from, item.car_year_to) && (
                         <p className="text-xs text-muted-foreground">{formatYearRange(item.car_year_from, item.car_year_to)}</p>
                       )}

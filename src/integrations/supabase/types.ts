@@ -127,6 +127,7 @@ export type Database = {
           created_at: string
           id: string
           image_url: string | null
+          model: string | null
           part_name: string
           part_number: string
           quantity: number
@@ -145,6 +146,7 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string | null
+          model?: string | null
           part_name: string
           part_number: string
           quantity?: number
@@ -163,6 +165,7 @@ export type Database = {
           created_at?: string
           id?: string
           image_url?: string | null
+          model?: string | null
           part_name?: string
           part_number?: string
           quantity?: number
@@ -297,6 +300,7 @@ export type Database = {
           created_at: string
           id: string
           inventory_id: string | null
+          model: string | null
           part_name: string
           part_number: string | null
           purchase_order_id: string
@@ -311,6 +315,7 @@ export type Database = {
           created_at?: string
           id?: string
           inventory_id?: string | null
+          model?: string | null
           part_name: string
           part_number?: string | null
           purchase_order_id: string
@@ -325,6 +330,7 @@ export type Database = {
           created_at?: string
           id?: string
           inventory_id?: string | null
+          model?: string | null
           part_name?: string
           part_number?: string | null
           purchase_order_id?: string
